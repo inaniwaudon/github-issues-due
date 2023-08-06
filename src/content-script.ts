@@ -34,7 +34,7 @@ const reload = async () => {
   const closedAnchors = document.querySelectorAll("#js-issues-toolbar a");
   if (closedAnchors[1] && closedAnchors[1].parentNode) {
     const dueAnchor = document.createElement("a");
-    dueAnchor.href = "/inaniwaudon/test-due/issues?q=is:issue+is:open+is:due";
+    dueAnchor.href = `/${owner}/${repo}/issues?q=is:issue+is:open+is:due`;
     dueAnchor.textContent = "Due date";
     dueAnchor.className = "btn-link";
     if (queryContainsDue) {

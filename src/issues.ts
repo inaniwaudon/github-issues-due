@@ -72,7 +72,7 @@ const createIssueItemElement = (
         const [h, s, l] = colorConvert.hex.hsl(label.color);
         style = `--label-r:${r};--label-g:${g};--label-b:${b};--label-h:${h};--label-s:${s};--label-l:${l};`;
       }
-      return `<a href="/inaniwaudon/tasks/issues?q=is%3Aissue+is%3Aopen+label%3A${label.name}" data-name="${label.name}" style="${style}" data-view-component="true" class="IssueLabel hx_IssueLabel" data-turbo-frame="repo-content-turbo-frame">
+      return `<a href="/${owner}/${repo}/issues?q=is%3Aissue+is%3Aopen+label%3A${label.name}" data-name="${label.name}" style="${style}" data-view-component="true" class="IssueLabel hx_IssueLabel" data-turbo-frame="repo-content-turbo-frame">
       ${label.name}
     </a>`;
     });

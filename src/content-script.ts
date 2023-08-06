@@ -1,6 +1,8 @@
 import { Octokit } from "@octokit/rest";
 import colorConvert from "color-convert";
 
+const DANGER_DAYS = 1;
+
 const displayDate = (date: Date, dateOnly: boolean) => {
   const month = [
     "Jan",
@@ -100,19 +102,24 @@ const createIssueItemElement = (
   return div;
 };
 
-const getDate = (line: string) => {
-  const result = line
-    .replace(/\s+/g, "")
-    .match(/[Dd]ue:(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);
-  if (result) {
-    try {
-      return new Date(
-        parseInt(result[1]),
-        parseInt(result[2]) - 1,
-        parseInt(result[3])
-      );
-    } catch (e) {
-      // ignore
+const getDueDate = (body: string | undefined | null) => {
+  if (!body) {
+    return null;
+  }
+  for (const line of body.split("\n")) {
+    const result = line
+      .replace(/\s+/g, "")
+      .match(/[Dd]ue:(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);
+    if (result) {
+      try {
+        return new Date(
+          parseInt(result[1]),
+          parseInt(result[2]) - 1,
+          parseInt(result[3])
+        );
+      } catch (e) {
+        // ignore
+      }
     }
   }
   return null;
@@ -126,11 +133,12 @@ const getDate = (line: string) => {
   const owner = splitedPaths[1];
   const repo = splitedPaths[2];
 
-  const issuesWrapper = document.querySelector(
+  const issuesDivQuery = '[aria-label="Issues"][role="group"]';
+  const issuesDiv = document.querySelector(
     '[aria-label="Issues"][role="group"]'
   );
   const enabled = true;
-  if (!issuesWrapper || !enabled) {
+  if (!issuesDiv || !enabled) {
     return;
   }
 
@@ -145,9 +153,53 @@ const getDate = (line: string) => {
     return;
   }
 
-  issuesWrapper.innerHTML = "";
+  // insert due date
+  const issueItemDivs = issuesDiv.querySelectorAll<HTMLDivElement>(
+    `${issuesDivQuery} > div > div`
+  );
+  const nowDate = new Date();
 
-  for (const issue of issues.data) {
+  for (const issueDiv of issueItemDivs) {
+    const id = issueDiv.dataset.id;
+    const issue = issues.data.find((issue) => issue.id.toString() === id);
+    if (!issue) {
+      continue;
+    }
+
+    const dueDate = getDueDate(issue.body);
+    if (!dueDate) {
+      continue;
+    }
+    const dueDateText =
+      dueDate.getFullYear() +
+      "-" +
+      ("0" + (dueDate.getMonth() + 1)).slice(-2) +
+      "-" +
+      ("0" + dueDate.getDate()).slice(-2);
+
+    // insert
+    const openedBySpan = issueDiv.querySelector(".opened-by");
+    if (openedBySpan && openedBySpan.parentNode) {
+      const dueSpan = document.createElement("span");
+      dueSpan.textContent = `– Due: ${dueDateText}`;
+      dueSpan.style.marginLeft = "4px";
+      openedBySpan.parentNode.insertBefore(
+        dueSpan,
+        openedBySpan.nextElementSibling
+      );
+    }
+
+    // styling
+    const leftDays =
+      (dueDate.getTime() - nowDate.getTime()) / (24 * 60 * 60 * 1000);
+    if (leftDays < DANGER_DAYS) {
+      issueDiv.style.background = "var(--color-danger-subtle)";
+    }
+  }
+
+  // issuesWrapper.innerHTML = "";
+
+  /*for (const issue of issues.data) {
     const labels: {
       name: string;
       color?: string | null;
@@ -159,13 +211,7 @@ const getDate = (line: string) => {
       }
     }
 
-    // check due date
-    let dueDate: Date | null = null;
-    if (issue.body) {
-      for (const line of issue.body.split("\n")) {
-        dueDate = getDate(line);
-      }
-    }
+    
 
     const element = createIssueItemElement(
       issue.id,
@@ -179,5 +225,5 @@ const getDate = (line: string) => {
     );
     console.log(element);
     issuesWrapper.appendChild(element);
-  }
+  }*/
 })();

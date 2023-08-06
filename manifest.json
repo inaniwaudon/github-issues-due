@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "github-issues-due",
+  "version": "1.0.0",
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*/*/issues"],
+      "js": ["src/content-script.ts"]
+    }
+  ]
+}

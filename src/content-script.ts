@@ -135,7 +135,7 @@ const getDate = (line: string) => {
   }
 
   // get issues
-  const octokit = new Octokit({ auth: TOKEN });
+  const octokit = new Octokit({ auth: import.meta.env.VITE_GITHUB_TOKEN });
   const issues = await octokit.issues.listForRepo({
     owner,
     repo,

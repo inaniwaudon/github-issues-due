@@ -1,6 +1,28 @@
 import { Octokit } from "@octokit/rest";
 import colorConvert from "color-convert";
 
+const displayDate = (date: Date, dateOnly: boolean) => {
+  const month = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ][date.getMonth()];
+  const dateStr = `${month} ${date.getDate()}, ${date.getFullYear()}`;
+  const timeStr = `${date.getHours() % 12}:${date.getMinutes()} ${
+    date.getHours() < 12 ? "AM" : "PM"
+  } GMT+9`;
+  return dateStr + (dateOnly ? "" : `, ${timeStr}`);
+};
+
 const createIssueItemElement = (
   id: number,
   number: number,
@@ -8,6 +30,7 @@ const createIssueItemElement = (
   owner: string,
   repo: string,
   author: string,
+  createdAt: Date,
   labels: {
     name: string;
     color?: string | null;
@@ -43,6 +66,15 @@ const createIssueItemElement = (
         )}</span>`
       : "";
 
+  // opened by
+  const createdAtDate = displayDate(createdAt, false);
+  const createdAtDateTime = displayDate(createdAt, false);
+  const openedBy = `<span class="opened-by">
+    #${number}
+    opened <relative-time datetime="${createdAt.toISOString()}" class="no-wrap" title="${createdAtDateTime}">${createdAtDate}</relative-time> by
+    <a class="Link--muted" title="Open issues created by ${author}" data-hovercard-type="user" data-hovercard-url="/users/${author}/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="/${owner}/${repo}/issues?q=is%3Aissue+is%3Aopen+author%3A${author}" data-turbo-frame="repo-content-turbo-frame">${author}</a>
+  </span>`;
+
   const content = `<div class="d-flex Box-row--drag-hide position-relative">
     ${checkbox}
     ${openDiv}
@@ -50,11 +82,7 @@ const createIssueItemElement = (
       <a id="issue_${number}_link" class="Link--primary v-align-middle no-underline h4 js-navigation-open markdown-title" data-hovercard-type="issue" data-hovercard-url="/${owner}/${repo}/issues/${number}/hovercard" href="/${owner}/${repo}/issues/${number}" data-turbo-frame="repo-content-turbo-frame">${title}</a>
       ${labelSpan}
       <div class="d-flex mt-1 text-small color-fg-muted">
-        <span class="opened-by">
-          #${number}
-            opened <relative-time datetime="2023-08-03T19:18:50Z" class="no-wrap" title="Aug 4, 2023, 4:18 AM GMT+9">Aug 4, 2023</relative-time> by
-            <a class="Link--muted" title="Open issues created by ${author}" data-hovercard-type="user" data-hovercard-url="/users/${author}/hovercard" data-octo-click="hovercard-link-click" data-octo-dimensions="link_type:self" href="/${owner}/${repo}/issues?q=is%3Aissue+is%3Aopen+author%3A${author}" data-turbo-frame="repo-content-turbo-frame">${author}</a>            
-        </span>
+        ${openedBy}
         <span class="d-none d-md-inline-flex"></span>
       </div>
     </div>
@@ -146,6 +174,7 @@ const getDate = (line: string) => {
       owner,
       repo,
       issue.user?.login!,
+      new Date(issue.created_at),
       labels
     );
     console.log(element);

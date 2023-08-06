@@ -1,7 +1,13 @@
 import { Octokit } from "@octokit/rest";
+import { GetResponseTypeFromEndpointMethod } from "@octokit/types";
 import colorConvert from "color-convert";
 
 const DANGER_DAYS = 1;
+
+const octokit = new Octokit({ auth: import.meta.env.VITE_GITHUB_TOKEN });
+type IssuesListForRepoType = GetResponseTypeFromEndpointMethod<
+  typeof octokit.issues.listForRepo
+>;
 
 const displayDate = (date: Date, dateOnly: boolean) => {
   const month = [
@@ -102,6 +108,44 @@ const createIssueItemElement = (
   return div;
 };
 
+const replaceIssuesWithDueDate = (
+  issues: IssuesListForRepoType,
+  issuesDiv: HTMLDivElement,
+  owner: string,
+  repo: string
+) => {
+  const issuesContainer = issuesDiv.getElementsByTagName("div")[0];
+  if (!issuesContainer) {
+    return;
+  }
+  issuesContainer.innerHTML = "";
+
+  for (const issue of issues.data) {
+    // label
+    const labels: {
+      name: string;
+      color?: string | null;
+    }[] = [];
+    for (const label of issue.labels) {
+      if (typeof label === "object" && label.name) {
+        labels.push({ name: label.name, color: label.color });
+      }
+    }
+
+    const element = createIssueItemElement(
+      issue.id,
+      issue.number,
+      issue.title,
+      owner,
+      repo,
+      issue.user?.login!,
+      new Date(issue.created_at),
+      labels
+    );
+    issuesContainer.appendChild(element);
+  }
+};
+
 const getDueDate = (body: string | undefined | null) => {
   if (!body) {
     return null;
@@ -125,7 +169,7 @@ const getDueDate = (body: string | undefined | null) => {
   return null;
 };
 
-(async () => {
+const reload = async () => {
   // get owner and repo
   const splitedPaths = location.pathname.split("/");
   if (splitedPaths.length < 3) {
@@ -140,7 +184,6 @@ const getDueDate = (body: string | undefined | null) => {
   }
 
   // get issues
-  const octokit = new Octokit({ auth: import.meta.env.VITE_GITHUB_TOKEN });
   const issues = await octokit.issues.listForRepo({
     owner,
     repo,
@@ -166,11 +209,20 @@ const getDueDate = (body: string | undefined | null) => {
   }
 
   const issuesDivQuery = '[aria-label="Issues"][role="group"]';
-  const issuesDiv = document.querySelector(
+  const issuesDiv = document.querySelector<HTMLDivElement>(
     '[aria-label="Issues"][role="group"]'
   );
   if (!issuesDiv) {
     return;
+  }
+
+  // is:due
+  const searchParams = new URL(location.href).searchParams;
+  const queryContainsDue = (searchParams.get("q") || "")
+    .split(" ")
+    .includes("is:due");
+  if (queryContainsDue) {
+    replaceIssuesWithDueDate(issues, issuesDiv, owner, repo);
   }
 
   // insert due date
@@ -216,34 +268,16 @@ const getDueDate = (body: string | undefined | null) => {
       issueDiv.style.background = "var(--color-danger-subtle)";
     }
   }
+};
 
-  // issuesWrapper.innerHTML = "";
-
-  /*for (const issue of issues.data) {
-    const labels: {
-      name: string;
-      color?: string | null;
-    }[] = [];
-    // label
-    for (const label of issue.labels) {
-      if (typeof label === "object" && label.name) {
-        labels.push({ name: label.name, color: label.color });
-      }
+(() => {
+  let url = "";
+  const callback = () => {
+    if (location.href !== url) {
+      url = location.href;
+      reload();
     }
-
-    
-
-    const element = createIssueItemElement(
-      issue.id,
-      issue.number,
-      issue.title,
-      owner,
-      repo,
-      issue.user?.login!,
-      new Date(issue.created_at),
-      labels
-    );
-    console.log(element);
-    issuesWrapper.appendChild(element);
-  }*/
+  };
+  const observer = new MutationObserver(callback);
+  observer.observe(document.body, { attributes: true, childList: true });
 })();

@@ -1,35 +1,19 @@
 import { Octokit } from "@octokit/rest";
 import { GetResponseTypeFromEndpointMethod } from "@octokit/types";
 import colorConvert from "color-convert";
-
-const DANGER_DAYS = 1;
+import {
+  displayGitHubDate,
+  displayHyphenedDate,
+  getDueDateFromBody,
+} from "./utils";
 
 const octokit = new Octokit({ auth: import.meta.env.VITE_GITHUB_TOKEN });
 type IssuesListForRepoType = GetResponseTypeFromEndpointMethod<
   typeof octokit.issues.listForRepo
 >;
 
-const displayDate = (date: Date, dateOnly: boolean) => {
-  const month = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ][date.getMonth()];
-  const dateStr = `${month} ${date.getDate()}, ${date.getFullYear()}`;
-  const timeStr = `${date.getHours() % 12}:${date.getMinutes()} ${
-    date.getHours() < 12 ? "AM" : "PM"
-  } GMT+9`;
-  return dateStr + (dateOnly ? "" : `, ${timeStr}`);
-};
+let insertedDueAnchors: HTMLAnchorElement[] = [];
+let insertedDueSpans: HTMLSpanElement[] = [];
 
 const createIssueItemElement = (
   id: number,
@@ -75,8 +59,8 @@ const createIssueItemElement = (
       : "";
 
   // opened by
-  const createdAtDate = displayDate(createdAt, false);
-  const createdAtDateTime = displayDate(createdAt, false);
+  const createdAtDate = displayGitHubDate(createdAt, false);
+  const createdAtDateTime = displayGitHubDate(createdAt, false);
   const openedBy = `<span class="opened-by">
     #${number}
     opened <relative-time datetime="${createdAt.toISOString()}" class="no-wrap" title="${createdAtDateTime}">${createdAtDate}</relative-time> by
@@ -120,7 +104,23 @@ const replaceIssuesWithDueDate = (
   }
   issuesContainer.innerHTML = "";
 
-  for (const issue of issues.data) {
+  const sortedIssues = [...issues.data].sort((a, b) => {
+    const aDue = getDueDateFromBody(a.body);
+    const bDue = getDueDateFromBody(b.body);
+    if (aDue && bDue) {
+      return aDue.getTime() - bDue.getTime();
+    }
+    if (aDue && !bDue) {
+      return -1;
+    }
+    if (!aDue && bDue) {
+      return 1;
+    } else {
+      return b.number - a.number;
+    }
+  });
+
+  for (const issue of sortedIssues) {
     // label
     const labels: {
       name: string;
@@ -146,37 +146,26 @@ const replaceIssuesWithDueDate = (
   }
 };
 
-const getDueDate = (body: string | undefined | null) => {
-  if (!body) {
-    return null;
+const reset = () => {
+  for (const element of [...insertedDueAnchors, ...insertedDueSpans]) {
+    element.remove();
   }
-  for (const line of body.split("\n")) {
-    const result = line
-      .replace(/\s+/g, "")
-      .match(/[Dd]ue:(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);
-    if (result) {
-      try {
-        return new Date(
-          parseInt(result[1]),
-          parseInt(result[2]) - 1,
-          parseInt(result[3])
-        );
-      } catch (e) {
-        // ignore
-      }
-    }
-  }
-  return null;
+  insertedDueAnchors = [];
+  insertedDueSpans = [];
 };
 
 const reload = async () => {
-  // get owner and repo
+  // url
   const splitedPaths = location.pathname.split("/");
   if (splitedPaths.length < 3) {
     return;
   }
   const owner = splitedPaths[1];
   const repo = splitedPaths[2];
+  const searchParams = new URL(location.href).searchParams;
+  const queryContainsDue = (searchParams.get("q") || "")
+    .split(" ")
+    .includes("is:due");
 
   const enabled = true;
   if (!enabled) {
@@ -194,18 +183,25 @@ const reload = async () => {
   }
 
   // add button to the toolbar
-  const closedAnchor = document.querySelectorAll("#js-issues-toolbar a")[1];
-  if (closedAnchor && closedAnchor.parentNode) {
+  const closedAnchors = document.querySelectorAll("#js-issues-toolbar a");
+  if (closedAnchors[1] && closedAnchors[1].parentNode) {
     const dueAnchor = document.createElement("a");
     dueAnchor.href = "/inaniwaudon/test-due/issues?q=is:issue+is:open+is:due";
     dueAnchor.textContent = "Due date";
     dueAnchor.className = "btn-link";
+    if (queryContainsDue) {
+      for (const anchor of closedAnchors) {
+        anchor.classList.remove("selected");
+      }
+      dueAnchor.classList.add("selected");
+    }
     dueAnchor.setAttribute("data-ga-click", "Issues, Table state, Closed");
     dueAnchor.setAttribute("data-turbo-frame", "repo-content-turbo-frame");
-    closedAnchor.parentNode.insertBefore(
+    closedAnchors[1].parentNode.insertBefore(
       dueAnchor,
-      closedAnchor.nextElementSibling
+      closedAnchors[1].nextElementSibling
     );
+    insertedDueAnchors.push(dueAnchor);
   }
 
   const issuesDivQuery = '[aria-label="Issues"][role="group"]';
@@ -217,10 +213,6 @@ const reload = async () => {
   }
 
   // is:due
-  const searchParams = new URL(location.href).searchParams;
-  const queryContainsDue = (searchParams.get("q") || "")
-    .split(" ")
-    .includes("is:due");
   if (queryContainsDue) {
     replaceIssuesWithDueDate(issues, issuesDiv, owner, repo);
   }
@@ -238,16 +230,11 @@ const reload = async () => {
       continue;
     }
 
-    const dueDate = getDueDate(issue.body);
+    const dueDate = getDueDateFromBody(issue.body);
     if (!dueDate) {
       continue;
     }
-    const dueDateText =
-      dueDate.getFullYear() +
-      "-" +
-      ("0" + (dueDate.getMonth() + 1)).slice(-2) +
-      "-" +
-      ("0" + dueDate.getDate()).slice(-2);
+    const dueDateText = displayHyphenedDate(dueDate);
 
     // insert
     const openedBySpan = issueDiv.querySelector(".opened-by");
@@ -259,12 +246,13 @@ const reload = async () => {
         dueSpan,
         openedBySpan.nextElementSibling
       );
+      insertedDueSpans.push(dueSpan);
     }
 
     // styling
     const leftDays =
       (dueDate.getTime() - nowDate.getTime()) / (24 * 60 * 60 * 1000);
-    if (leftDays < DANGER_DAYS) {
+    if (leftDays < import.meta.env.VITE_DANGER_DAYS) {
       issueDiv.style.background = "var(--color-danger-subtle)";
     }
   }
@@ -275,9 +263,11 @@ const reload = async () => {
   const callback = () => {
     if (location.href !== url) {
       url = location.href;
+      reset();
       reload();
     }
   };
   const observer = new MutationObserver(callback);
   observer.observe(document.body, { attributes: true, childList: true });
+  reload();
 })();

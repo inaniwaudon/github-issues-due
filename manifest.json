@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "content_scripts": [
     {
-      "matches": ["https://github.com/*/*/issues"],
+      "matches": ["https://github.com/*/*/issues*"],
       "js": ["src/content-script.ts"]
     }
   ]

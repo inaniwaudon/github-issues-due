@@ -126,6 +126,7 @@ const getDueDate = (body: string | undefined | null) => {
 };
 
 (async () => {
+  // get owner and repo
   const splitedPaths = location.pathname.split("/");
   if (splitedPaths.length < 3) {
     return;
@@ -133,13 +134,9 @@ const getDueDate = (body: string | undefined | null) => {
   const owner = splitedPaths[1];
   const repo = splitedPaths[2];
 
-  const issuesDivQuery = '[aria-label="Issues"][role="group"]';
-  const issuesDiv = document.querySelector(
-    '[aria-label="Issues"][role="group"]'
-  );
   const enabled = true;
-  if (!issuesDiv || !enabled) {
-    return;
+  if (!enabled) {
+    return true;
   }
 
   // get issues
@@ -150,6 +147,29 @@ const getDueDate = (body: string | undefined | null) => {
     per_page: 100,
   });
   if (issues.status !== 200) {
+    return;
+  }
+
+  // add button to the toolbar
+  const closedAnchor = document.querySelectorAll("#js-issues-toolbar a")[1];
+  if (closedAnchor && closedAnchor.parentNode) {
+    const dueAnchor = document.createElement("a");
+    dueAnchor.href = "/inaniwaudon/test-due/issues?q=is:issue+is:open+is:due";
+    dueAnchor.textContent = "Due date";
+    dueAnchor.className = "btn-link";
+    dueAnchor.setAttribute("data-ga-click", "Issues, Table state, Closed");
+    dueAnchor.setAttribute("data-turbo-frame", "repo-content-turbo-frame");
+    closedAnchor.parentNode.insertBefore(
+      dueAnchor,
+      closedAnchor.nextElementSibling
+    );
+  }
+
+  const issuesDivQuery = '[aria-label="Issues"][role="group"]';
+  const issuesDiv = document.querySelector(
+    '[aria-label="Issues"][role="group"]'
+  );
+  if (!issuesDiv) {
     return;
   }
 

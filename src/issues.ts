@@ -20,25 +20,27 @@ export const getIssues = async (owner: string, repo: string) => {
   }
 };
 
-const getSortedIssues = (issues: IssuesListForRepoType) =>
-  [...issues.data].sort((a, b) => {
-    const aDue = getDueDateFromBody(a.body);
-    const bDue = getDueDateFromBody(b.body);
-    if (aDue && bDue) {
-      if (aDue.getTime() === bDue.getTime()) {
+const getSortedOpenIssues = (issues: IssuesListForRepoType) =>
+  [...issues.data]
+    .filter((issue) => issue.state === "open")
+    .sort((a, b) => {
+      const aDue = getDueDateFromBody(a.body);
+      const bDue = getDueDateFromBody(b.body);
+      if (aDue && bDue) {
+        if (aDue.getTime() === bDue.getTime()) {
+          return b.number - a.number;
+        }
+        return aDue.getTime() - bDue.getTime();
+      }
+      if (aDue && !bDue) {
+        return -1;
+      }
+      if (!aDue && bDue) {
+        return 1;
+      } else {
         return b.number - a.number;
       }
-      return aDue.getTime() - bDue.getTime();
-    }
-    if (aDue && !bDue) {
-      return -1;
-    }
-    if (!aDue && bDue) {
-      return 1;
-    } else {
-      return b.number - a.number;
-    }
-  });
+    });
 
 const createIssueItemElement = (
   id: number,
@@ -128,7 +130,7 @@ export const replaceIssuesWithDueDate = (
     return;
   }
   issuesContainer.innerHTML = "";
-  const sortedIssues = getSortedIssues(issues);
+  const sortedIssues = getSortedOpenIssues(issues);
 
   for (const issue of sortedIssues) {
     // label

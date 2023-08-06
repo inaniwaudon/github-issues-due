@@ -15,10 +15,30 @@ export const getIssues = async (owner: string, repo: string) => {
     repo,
     per_page: 100,
   });
-  if (issues.status !== 200) {
+  if (issues.status === 200) {
     return issues;
   }
 };
+
+const getSortedIssues = (issues: IssuesListForRepoType) =>
+  [...issues.data].sort((a, b) => {
+    const aDue = getDueDateFromBody(a.body);
+    const bDue = getDueDateFromBody(b.body);
+    if (aDue && bDue) {
+      if (aDue.getTime() === bDue.getTime()) {
+        return b.number - a.number;
+      }
+      return aDue.getTime() - bDue.getTime();
+    }
+    if (aDue && !bDue) {
+      return -1;
+    }
+    if (!aDue && bDue) {
+      return 1;
+    } else {
+      return b.number - a.number;
+    }
+  });
 
 const createIssueItemElement = (
   id: number,
@@ -96,23 +116,6 @@ const createIssueItemElement = (
   div.innerHTML = content;
   return div;
 };
-
-const getSortedIssues = (issues: IssuesListForRepoType) =>
-  [...issues.data].sort((a, b) => {
-    const aDue = getDueDateFromBody(a.body);
-    const bDue = getDueDateFromBody(b.body);
-    if (aDue && bDue) {
-      return aDue.getTime() - bDue.getTime();
-    }
-    if (aDue && !bDue) {
-      return -1;
-    }
-    if (!aDue && bDue) {
-      return 1;
-    } else {
-      return b.number - a.number;
-    }
-  });
 
 export const replaceIssuesWithDueDate = (
   issues: IssuesListForRepoType,
